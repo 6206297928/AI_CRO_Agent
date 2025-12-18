@@ -4,3 +4,5 @@ pandas
 beautifulsoup4
 requests
 lxml
+faiss-cpu
+numpy
