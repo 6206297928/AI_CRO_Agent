@@ -1,15 +1,11 @@
 from scipy.stats import beta
 import pandas as pd
 
-def bayesian_ab(conv_a, users_a, conv_b, users_b, samples=10000):
-    a = beta.rvs(conv_a + 1, users_a - conv_a + 1, size=samples)
-    b = beta.rvs(conv_b + 1, users_b - conv_b + 1, size=samples)
-    return round((b > a).mean(), 3)
-
 def experiment_agent(state: dict):
     csv_text = state.get("cro_csv", "")
 
-    if not csv_text:
+    if not csv_text.strip():
+        state["final_df"] = None
         return state
 
     df = pd.read_csv(
@@ -18,14 +14,24 @@ def experiment_agent(state: dict):
         on_bad_lines="skip"
     )
 
-    df["Confidence"] = df["Confidence"].astype(float)
-    df["Effort"] = df["Suggested Fix"].apply(
-        lambda x: 1 if "text" in x.lower() else 2
+    # 🔒 Robust confidence parsing (FIX)
+    df["Confidence"] = (
+        df["Confidence"]
+        .astype(str)
+        .str.extract(r"([0-9]*\.?[0-9]+)")
+        .astype(float)
     )
 
+    df["Confidence"] = df["Confidence"].fillna(0.5)
+
+    # Simple effort heuristic
+    df["Effort"] = df["Suggested Fix"].astype(str).apply(
+        lambda x: 1 if any(k in x.lower() for k in ["text", "copy", "cta"]) else 2
+    )
+
+    # Priority score
     df["PriorityScore"] = (df["Confidence"] * 10) / df["Effort"]
     df = df.sort_values("PriorityScore", ascending=False)
 
     state["final_df"] = df
     return state
-
